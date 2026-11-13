@@ -7,6 +7,17 @@ import os
 # Configuração da página - DEVE SER SEMPRE O PRIMEIRO COMANDO
 st.set_page_config(page_title="LELD Docs Auditor", page_icon="🔒", layout="wide")
 
+# --- INÍCIO DA CONFIGURAÇÃO DE SEGURANÇA (COFRE) ---
+# Cria o arquivo de credenciais a partir do cofre (Secrets) ANTES de o ler
+if not os.path.exists("google_credentials.json"):
+    try:
+        with open("google_credentials.json", "w") as f:
+            f.write(st.secrets["google_credentials_json"])
+    except Exception as e:
+        st.error("Erro: O segredo 'google_credentials_json' não foi encontrado no painel do Streamlit.")
+        st.stop()
+# --- FIM DA CONFIGURAÇÃO DE SEGURANÇA ---
+
 # Ler as credenciais diretamente do ficheiro google_credentials.json
 try:
     with open('google_credentials.json', 'r') as f:
@@ -21,7 +32,8 @@ except Exception as e:
     st.error(f"Erro ao carregar o ficheiro 'google_credentials.json': {e}")
     st.stop()
 
-REDIRECT_URI = 'http://localhost:8501'
+# ATUALIZADO: Usar a URL oficial do Streamlit em vez do localhost!
+REDIRECT_URI = 'https://leld-docs.streamlit.app'
 
 def main():
     st.title("🔒 LELD Docs Auditor")
@@ -87,7 +99,7 @@ def main():
                         st.query_params.clear()
                         st.rerun()
                     else:
-                        st.error(f"O e-mail **{email}** não tem permissão. Apenas contas institucionais (@unesp.br) são aceitas.")
+                        st.error(f"O e-mail **{email}** não tem permissão. Apenas contas institucionais (@unesp.br) são aceites.")
                         st.query_params.clear()
                 else:
                     st.error(f"Erro na autenticação com o Google: {token_json.get('error_description', token_json)}")
