@@ -1,0 +1,30 @@
+# Solução teste
+src/LELD_Docs_Teste.py
+# Credenciais e Variáveis de Ambiente (MUITO IMPORTANTE)
+.env
+*.env
+
+# Ambientes Virtuais
+.venv/
+env/
+venv/
+
+# Arquivos de dados de entrada e resultados (PDFs e HTMLs gerados)
+Dados/
+Resultados/
+
+# Cache e arquivos temporários do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Configurações de IDEs e Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
