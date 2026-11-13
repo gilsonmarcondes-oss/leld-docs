@@ -9,9 +9,11 @@ src/LELD_Docs_Teste.py
 env/
 venv/
 
-# Arquivos de dados de entrada e resultados (PDFs e HTMLs gerados)
-Dados/
+# Arquivos de dados de entrada e resultados
 Resultados/
+Dados/brutos/
+Dados/intermediarios/
+!Dados/ficticios/
 
 # Cache e arquivos temporários do Python
 __pycache__/
@@ -28,3 +30,4 @@ __pycache__/
 
 # Logs
 *.log
+google_credentials.json

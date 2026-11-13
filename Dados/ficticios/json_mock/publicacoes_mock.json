@@ -1,0 +1,11 @@
+[
+  {
+    "docente": "Docente Teste Fictício",
+    "tipo_publicacao": "Artigo em Periódico",
+    "titulo": "Artigo Exemplo para Testes Offline",
+    "ano": "2022",
+    "condicao": "1º de 3 (Primeiro)",
+    "relacao_graduacao": "Posterior",
+    "pagina_pdf": 1
+  }
+]

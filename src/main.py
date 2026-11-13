@@ -10,6 +10,7 @@ import sys
 import json
 import time
 import re
+import hashlib
 import pypdf
 
 # Resolução dinâmica do sys.path para execução como script ou pacote
@@ -29,7 +30,8 @@ try:
         ARQUIVO_SAIDA_EVENTOS_HTML,
         MODELOS_DISPONIVEIS,
         PAGINAS_POR_LOTE,
-        TEMPO_ESPERA_ENTRE_LOTES
+        TEMPO_ESPERA_ENTRE_LOTES,
+        DIR_JSON_CHECKPOINTS
     )
     from src.security.sanitizers import sanitizar_texto_para_prompt
     from src.services.ai_service import AIService
@@ -52,7 +54,8 @@ except ModuleNotFoundError:
         ARQUIVO_SAIDA_EVENTOS_HTML,
         MODELOS_DISPONIVEIS,
         PAGINAS_POR_LOTE,
-        TEMPO_ESPERA_ENTRE_LOTES
+        TEMPO_ESPERA_ENTRE_LOTES,
+        DIR_JSON_CHECKPOINTS
     )
     from security.sanitizers import sanitizar_texto_para_prompt
     from services.ai_service import AIService
@@ -145,6 +148,14 @@ def sanitizar_registro_json(registro: dict, tipo_doc: str, nome_docente: str, p_
     return item
 
 
+def calcular_hash_arquivo(caminho_arquivo: str) -> str:
+    sha256 = hashlib.sha256()
+    with open(caminho_arquivo, "rb") as f:
+        while chunk := f.read(8192):
+            sha256.update(chunk)
+    return sha256.hexdigest()
+
+
 def processar_lotes_json(
     ai_service: AIService, 
     caminho_pdf: str, 
@@ -158,10 +169,11 @@ def processar_lotes_json(
     if not os.path.exists(caminho_pdf):
         nome_base = os.path.basename(caminho_pdf)
         print(f"\n⚠️ Arquivo de {tipo_doc} não encontrado em '{caminho_pdf}'.")
-        print(f"   💡 Dica: Para auditar {tipo_doc}, adicione o arquivo '{nome_base}' na pasta 'Dados/'. Etapa ignorada.")
+        print(f"   💡 Dica: Para auditar {tipo_doc}, adicione o arquivo '{nome_base}' na pasta 'Dados/brutos/'. Etapa ignorada.")
         return [], 0, nome_base
 
     print(f"\n🔍 Extraindo e fatiando PDF de {tipo_doc} por páginas reais...")
+    pdf_hash = calcular_hash_arquivo(caminho_pdf)
     total_paginas, lotes = extrair_texto_por_paginas(caminho_pdf, paginas_por_lote=paginas_por_lote)
 
     nome_arquivo = os.path.basename(caminho_pdf)
@@ -171,12 +183,33 @@ def processar_lotes_json(
 
     print(f"📦 PDF de {tipo_doc} ({total_paginas} págs) dividido em {total_lotes} lote(s) de ~{paginas_por_lote} páginas cada.")
     todos_os_registros = []
+    docente_sanitizado_ckpt = re.sub(r'[^a-zA-Z0-9_]', '_', nome_docente)
 
     for idx, lote in enumerate(lotes, start=1):
         p_inicio = lote["pagina_inicio"]
         p_fim = lote["pagina_fim"]
-        print(f"⚙️ Extraindo Lote {idx}/{total_lotes} (Páginas {p_inicio} a {p_fim})...")
 
+        ckpt_filename = f"ckpt_{tipo_doc}_{docente_sanitizado_ckpt}_{pdf_hash[:8]}_p{p_inicio:03d}_{p_fim:03d}.json"
+        ckpt_path = os.path.join(DIR_JSON_CHECKPOINTS, ckpt_filename)
+
+        registros_lote = None
+        if os.path.exists(ckpt_path):
+            try:
+                with open(ckpt_path, "r", encoding="utf-8") as f:
+                    ckpt_data = json.load(f)
+                    meta = ckpt_data.get("metadata", {})
+                    if meta.get("docente") == nome_docente and meta.get("hash_pdf") == pdf_hash:
+                        registros_lote = ckpt_data.get("registros", [])
+                        print(f"🔄 [Checkpoint] Lote {idx}/{total_lotes} (Págs {p_inicio}-{p_fim}) carregado para '{nome_docente}'.")
+            except Exception as e:
+                print(f"  └─ ⚠️ Erro ao ler checkpoint para Págs {p_inicio}-{p_fim}: {e}. Reprocessando...")
+
+        if registros_lote is not None:
+            todos_os_registros.extend(registros_lote)
+            print(f"  └─ ✅ Págs {p_inicio}-{p_fim}: {len(registros_lote)} registros aproveitados do checkpoint.")
+            continue
+
+        print(f"⚙️ Extraindo Lote {idx}/{total_lotes} (Páginas {p_inicio} a {p_fim})...")
         texto_sanitizado = sanitizar_texto_para_prompt(lote["texto"])
 
         if tipo_doc.lower() == "publicações":
@@ -198,11 +231,13 @@ def processar_lotes_json(
                 nome_arquivo=f"{nome_arquivo} (Págs {p_inicio}-{p_fim})"
             )
 
+        sucesso_lote = False
+        registros_limpos = []
+
         for modelo in MODELOS_DISPONIVEIS:
             resposta = ai_service.executar_requisicao_com_retry(modelo, prompt, instrucao_sistema)
             if resposta and resposta.text:
                 try:
-                    # Busca preferencialmente o bloco de array JSON '[...]' delimitado no texto
                     match_array = re.search(r'\[.*\]', resposta.text, re.DOTALL)
                     conteudo_json = match_array.group(0) if match_array else re.sub(r'```json\s*|\s*```', '', resposta.text.strip())
 
@@ -212,11 +247,36 @@ def processar_lotes_json(
                             sanitizar_registro_json(reg, tipo_doc, nome_docente, p_inicio)
                             for reg in dados_lote if isinstance(reg, dict)
                         ]
-                        todos_os_registros.extend(registros_limpos)
-                        print(f"  └─ ✅ Págs {p_inicio}-{p_fim}: {len(registros_limpos)} registros extraídos.")
-                    break
+                        sucesso_lote = True
+                        break
                 except json.JSONDecodeError:
                     print(f"  └─ ⚠️ Falha ao decodificar JSON nas págs {p_inicio}-{p_fim} ({modelo}). Retentando...")
+
+        if not sucesso_lote:
+            print(f"\n❌ ERRO CRÍTICO: Falha definitiva ao processar o Lote {idx}/{total_lotes} (Págs {p_inicio}-{p_fim}) de {tipo_doc}.")
+            print(f"   🛑 Por exigência de integridade e auditabilidade acadêmica, a análise de '{nome_arquivo}' foi ABORTADA.")
+            print(f"   💡 Dica: Corrija a conexão/cota e reexecute; os lotes anteriores bem-sucedidos serão aproveitados via checkpoint seguro.")
+            return [], total_paginas, nome_arquivo
+
+        todos_os_registros.extend(registros_limpos)
+        print(f"  └─ ✅ Págs {p_inicio}-{p_fim}: {len(registros_limpos)} registros extraídos com sucesso.")
+
+        try:
+            ckpt_payload = {
+                "metadata": {
+                    "docente": nome_docente,
+                    "arquivo_pdf": nome_arquivo,
+                    "hash_pdf": pdf_hash,
+                    "pagina_inicio": p_inicio,
+                    "pagina_fim": p_fim,
+                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                },
+                "registros": registros_limpos
+            }
+            with open(ckpt_path, "w", encoding="utf-8") as f_ckpt:
+                json.dump(ckpt_payload, f_ckpt, ensure_ascii=False, indent=2)
+        except Exception as e_ckpt:
+            print(f"  └─ ⚠️ Aviso: Não foi possível salvar o checkpoint para o lote {p_inicio}-{p_fim}: {e_ckpt}")
 
         if idx < total_lotes:
             time.sleep(TEMPO_ESPERA_ENTRE_LOTES)
