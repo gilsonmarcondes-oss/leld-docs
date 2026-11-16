@@ -20,7 +20,7 @@ from src.config import (
     ARQUIVO_SAIDA_EVENTOS_HTML
 )
 
-# Tenta importar a função main do main.py para execução direta
+# Tenta importar a função main do main.py para execução direta (sem alterar o main.py)
 try:
     import main as auditor_main
 except ImportError:
@@ -62,11 +62,13 @@ def salvar_pdf_upload(uploaded_file, caminho_destino):
 def main():
     st.title("🔒 LELD Docs Auditor")
 
-    # Inicializar estados de sessão no Streamlit
+    # Inicializar estados de sessão
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
     if "user_email" not in st.session_state:
         st.session_state.user_email = None
+    if "relatorios_salvos_sessao" not in st.session_state:
+        st.session_state.relatorios_salvos_sessao = {}
 
     # Se ainda não estiver autenticado, mostra o botão de login
     if not st.session_state.authenticated:
@@ -161,6 +163,7 @@ def main():
             if st.button("🚪 Terminar Sessão", use_container_width=True):
                 st.session_state.authenticated = False
                 st.session_state.user_email = None
+                st.session_state.relatorios_salvos_sessao = {}
                 for var in ["GOOGLE_API_KEY", "GEMINI_API_KEY"]:
                     if var in os.environ:
                         del os.environ[var]
@@ -204,52 +207,48 @@ def main():
             else:
                 with st.spinner("⏳ A executar o pipeline de auditoria... Isso pode levar alguns minutos. Aguarde."):
                     try:
+                        # Executa o main.py original sem mexer nele
                         auditor_main.main()
+                        
+                        # CAPTURA OS FICHEIROS GERADOS E SALVA NA MEMÓRIA DA SESSÃO DO UTILIZADOR
+                        candidatos = [
+                            ("Relatorio_Publicacoes.html", ARQUIVO_SAIDA_PUBS_HTML),
+                            ("Relatorio_Eventos.html", ARQUIVO_SAIDA_EVENTOS_HTML)
+                        ]
+                        
+                        st.session_state.relatorios_salvos_sessao = {}
+                        for nome_desc, caminho in candidatos:
+                            alvo = caminho if (caminho and os.path.exists(caminho)) else (nome_desc if os.path.exists(nome_desc) else None)
+                            if alvo:
+                                with open(alvo, "rb") as f_rd:
+                                    st.session_state.relatorios_salvos_sessao[nome_desc] = f_rd.read()
+
+                        # Varredura adicional por segurança caso use nomes personalizados
+                        for raiz, dirs, arquivos in os.walk("."):
+                            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("__pycache__", "venv", ".git")]
+                            for arq in arquivos:
+                                if arq.lower().endswith((".html", ".xlsx", ".xls", ".csv", ".md")) and arq not in {"AGENTS.md", "SPECIFICATION.md", "README.md", "packages.txt"}:
+                                    caminho_completo = os.path.join(raiz, arq)
+                                    with open(caminho_completo, "rb") as f_rd:
+                                        st.session_state.relatorios_salvos_sessao[arq] = f_rd.read()
+
                         st.success("✨ Processamento de auditoria finalizado com sucesso!")
                     except Exception as e:
                         st.error(f"Erro durante a execução da auditoria: {e}")
 
-        # --- BUSCA ROBUSTA DE RELATÓRIOS (OFICIAIS + VARREDURA RECURSIVA) ---
-        relatorios_para_baixar = []
-        
-        # 1. Verifica primeiro os caminhos oficiais vindos do config.py
-        caminhos_oficiais = [ARQUIVO_SAIDA_PUBS_HTML, ARQUIVO_SAIDA_EVENTOS_HTML]
-        for cam in caminhos_oficiais:
-            if cam and os.path.exists(cam):
-                nome_arq = os.path.basename(cam)
-                if (nome_arq, cam) not in relatorios_para_baixar:
-                    relatorios_para_baixar.append((nome_arq, cam))
-
-        # 2. Faz uma varredura completa em todas as pastas e subpastas à procura de relatórios HTML ou Excel gerados
-        extensoes_alvo = (".html", ".xlsx", ".xls", ".csv", ".md")
-        ignorados = {"AGENTS.md", "SPECIFICATION.md", "README.md", "packages.txt"}
-
-        for raiz, dirs, arquivos in os.walk("."):
-            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("__pycache__", "venv", ".git")]
-            for arq in arquivos:
-                if arq in ignorados or arq.startswith("."):
-                    continue
-                if arq.lower().endswith(extensoes_alvo):
-                    caminho_completo = os.path.join(raiz, arq)
-                    # Adiciona se já não estiver na lista
-                    if not any(c[1] == caminho_completo for c in relatorios_para_baixar):
-                        relatorios_para_baixar.append((arq, caminho_completo))
-
-        if relatorios_para_baixar:
+        # --- EXIBIÇÃO DOS BOTÕES DE DOWNLOAD SEGUROS DA SESSÃO ---
+        if st.session_state.relatorios_salvos_sessao:
             st.divider()
             st.subheader("📥 Relatórios Gerados Disponíveis para Download:")
             
-            for idx, (nome_arquivo, caminho_completo) in enumerate(sorted(relatorios_para_baixar)):
-                with open(caminho_completo, "rb") as f_down:
-                    conteudo_bytes = f_down.read()
-                
+            for nome_arq, conteudo_bytes in sorted(st.session_state.relatorios_salvos_sessao.items()):
                 st.download_button(
-                    label=f"⬇️ Descarregar {nome_arquivo}  ({caminho_completo})",
+                    label=f"⬇️ Descarregar {nome_arq}",
                     data=conteudo_bytes,
-                    file_name=nome_arquivo,
+                    file_name=nome_arq,
                     mime="application/octet-stream",
                     use_container_width=True,
-                    key=f"download_robusto_{idx}_{nome_arquivo}"
+                    key=f"download_seguro_{nome_arq}"
                 )
 
 if __name__ == "__main__":
