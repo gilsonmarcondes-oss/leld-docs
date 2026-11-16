@@ -15,12 +15,10 @@ if os.path.abspath("src") not in sys.path:
 from src.config import (
     CAMINHO_LATTES_PDF,
     CAMINHO_PUBLICACOES_PDF,
-    CAMINHO_EVENTOS_PDF,
-    ARQUIVO_SAIDA_PUBS_HTML,
-    ARQUIVO_SAIDA_EVENTOS_HTML
+    CAMINHO_EVENTOS_PDF
 )
 
-# Tenta importar a função main do main.py para execução direta (sem alterar o main.py)
+# Tenta importar a função main do main.py para execução direta
 try:
     import main as auditor_main
 except ImportError:
@@ -207,27 +205,17 @@ def main():
             else:
                 with st.spinner("⏳ A executar o pipeline de auditoria... Isso pode levar alguns minutos. Aguarde."):
                     try:
-                        # Executa o main.py original sem mexer nele
+                        # Executa o main.py original
                         auditor_main.main()
                         
-                        # CAPTURA OS FICHEIROS GERADOS E SALVA NA MEMÓRIA DA SESSÃO DO UTILIZADOR
-                        candidatos = [
-                            ("Relatorio_Publicacoes.html", ARQUIVO_SAIDA_PUBS_HTML),
-                            ("Relatorio_Eventos.html", ARQUIVO_SAIDA_EVENTOS_HTML)
-                        ]
-                        
+                        # VARREDURA UNIVERSAL PROFUNDA DE QUALQUER HTML GERADO
                         st.session_state.relatorios_salvos_sessao = {}
-                        for nome_desc, caminho in candidatos:
-                            alvo = caminho if (caminho and os.path.exists(caminho)) else (nome_desc if os.path.exists(nome_desc) else None)
-                            if alvo:
-                                with open(alvo, "rb") as f_rd:
-                                    st.session_state.relatorios_salvos_sessao[nome_desc] = f_rd.read()
-
-                        # Varredura adicional por segurança caso use nomes personalizados
+                        
                         for raiz, dirs, arquivos in os.walk("."):
+                            # Ignora pastas de sistema
                             dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("__pycache__", "venv", ".git")]
                             for arq in arquivos:
-                                if arq.lower().endswith((".html", ".xlsx", ".xls", ".csv", ".md")) and arq not in {"AGENTS.md", "SPECIFICATION.md", "README.md", "packages.txt"}:
+                                if arq.lower().endswith(".html") and arq not in {"index.html"}:
                                     caminho_completo = os.path.join(raiz, arq)
                                     with open(caminho_completo, "rb") as f_rd:
                                         st.session_state.relatorios_salvos_sessao[arq] = f_rd.read()
@@ -236,7 +224,7 @@ def main():
                     except Exception as e:
                         st.error(f"Erro durante a execução da auditoria: {e}")
 
-        # --- EXIBIÇÃO DOS BOTÕES DE DOWNLOAD SEGUROS DA SESSÃO ---
+        # --- EXIBIÇÃO DOS BOTÕES DE DOWNLOAD ---
         if st.session_state.relatorios_salvos_sessao:
             st.divider()
             st.subheader("📥 Relatórios Gerados Disponíveis para Download:")
@@ -246,9 +234,9 @@ def main():
                     label=f"⬇️ Descarregar {nome_arq}",
                     data=conteudo_bytes,
                     file_name=nome_arq,
-                    mime="application/octet-stream",
+                    mime="text/html",
                     use_container_width=True,
-                    key=f"download_seguro_{nome_arq}"
+                    key=f"download_final_{nome_arq}"
                 )
 
 if __name__ == "__main__":
