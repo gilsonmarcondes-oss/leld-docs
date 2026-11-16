@@ -205,41 +205,51 @@ def main():
                 with st.spinner("⏳ A executar o pipeline de auditoria... Isso pode levar alguns minutos. Aguarde."):
                     try:
                         auditor_main.main()
-                        st.session_state.auditoria_concluida = True
                         st.success("✨ Processamento de auditoria finalizado com sucesso!")
                     except Exception as e:
                         st.error(f"Erro durante a execução da auditoria: {e}")
 
-        # --- DOWNLOAD DIRETO AUTOMÁTICO DOS RELATÓRIOS OFICIAIS ---
-        candidatos_relatorios = [
-            ("Relatorio_Publicacoes.html", ARQUIVO_SAIDA_PUBS_HTML),
-            ("Relatorio_Eventos.html", ARQUIVO_SAIDA_EVENTOS_HTML),
-            ("relatorio_publicacoes.html", "relatorio_publicacoes.html"),
-            ("relatorio_eventos.html", "relatorio_eventos.html")
-        ]
+        # --- BUSCA ROBUSTA DE RELATÓRIOS (OFICIAIS + VARREDURA RECURSIVA) ---
+        relatorios_para_baixar = []
+        
+        # 1. Verifica primeiro os caminhos oficiais vindos do config.py
+        caminhos_oficiais = [ARQUIVO_SAIDA_PUBS_HTML, ARQUIVO_SAIDA_EVENTOS_HTML]
+        for cam in caminhos_oficiais:
+            if cam and os.path.exists(cam):
+                nome_arq = os.path.basename(cam)
+                if (nome_arq, cam) not in relatorios_para_baixar:
+                    relatorios_para_baixar.append((nome_arq, cam))
 
-        encontrados_para_baixar = []
-        for nome_desc, caminho in candidatos_relatorios:
-            if caminho and os.path.exists(caminho):
-                encontrados_para_baixar.append((nome_desc, caminho))
-            elif os.path.exists(nome_desc):
-                encontrados_para_baixar.append((nome_desc, nome_desc))
+        # 2. Faz uma varredura completa em todas as pastas e subpastas à procura de relatórios HTML ou Excel gerados
+        extensoes_alvo = (".html", ".xlsx", ".xls", ".csv", ".md")
+        ignorados = {"AGENTS.md", "SPECIFICATION.md", "README.md", "packages.txt"}
 
-        if encontrados_para_baixar:
+        for raiz, dirs, arquivos in os.walk("."):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("__pycache__", "venv", ".git")]
+            for arq in arquivos:
+                if arq in ignorados or arq.startswith("."):
+                    continue
+                if arq.lower().endswith(extensoes_alvo):
+                    caminho_completo = os.path.join(raiz, arq)
+                    # Adiciona se já não estiver na lista
+                    if not any(c[1] == caminho_completo for c in relatorios_para_baixar):
+                        relatorios_para_baixar.append((arq, caminho_completo))
+
+        if relatorios_para_baixar:
             st.divider()
-            st.subheader("📥 Clique abaixo para descarregar os relatórios gerados:")
+            st.subheader("📥 Relatórios Gerados Disponíveis para Download:")
             
-            for idx, (nome_desc, caminho_real) in enumerate(encontrados_para_baixar):
-                with open(caminho_real, "rb") as f_down:
-                    dados_binarios = f_down.read()
+            for idx, (nome_arquivo, caminho_completo) in enumerate(sorted(relatorios_para_baixar)):
+                with open(caminho_completo, "rb") as f_down:
+                    conteudo_bytes = f_down.read()
                 
                 st.download_button(
-                    label=f"⬇️ Descarregar {nome_desc}",
-                    data=dados_binarios,
-                    file_name=nome_desc,
-                    mime="text/html",
+                    label=f"⬇️ Descarregar {nome_arquivo}  ({caminho_completo})",
+                    data=conteudo_bytes,
+                    file_name=nome_arquivo,
+                    mime="application/octet-stream",
                     use_container_width=True,
-                    key=f"download_direto_{idx}"
+                    key=f"download_robusto_{idx}_{nome_arquivo}"
                 )
 
 if __name__ == "__main__":
