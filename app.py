@@ -187,14 +187,45 @@ def main():
             if not os.environ.get("GEMINI_API_KEY"):
                 st.error("❌ Por favor, insira a sua Google API Key na barra lateral antes de executar a auditoria.")
             else:
-                st.info("A executar o pipeline de auditoria... Acompanhe o progresso no terminal.")
-                try:
-                    with open("src/main.py", encoding="utf-8") as f:
-                        code = f.read()
-                    exec(code, {"__name__": "__main__", "__file__": "src/main.py"})
-                    st.success("✨ Processamento de auditoria finalizado! Verifique a pasta Resultados.")
-                except Exception as e:
-                    st.error(f"Erro durante a execução da auditoria: {e}")
+                # Limpa relatórios antigos antes de rodar uma nova auditoria (opcional, evita baixar arquivo velho)
+                os.makedirs("Resultados", exist_ok=True)
+                
+                with st.spinner("⏳ A executar o pipeline de auditoria... Isso pode levar alguns minutos."):
+                    try:
+                        with open("src/main.py", encoding="utf-8") as f:
+                            code = f.read()
+                        exec(code, {"__name__": "__main__", "__file__": "src/main.py"})
+                        st.success("✨ Processamento de auditoria finalizado! Baixe os arquivos abaixo.")
+                    except Exception as e:
+                        st.error(f"Erro durante a execução da auditoria: {e}")
+
+        # --- SEÇÃO DE DOWNLOAD DOS RESULTADOS ---
+        # Verifica se existem arquivos na pasta Resultados (ou resultados) e exibe botões de download
+        pasta_res = "Resultados" if os.path.exists("Resultados") else ("resultados" if os.path.exists("resultados") else None)
+        
+        if pasta_res:
+            arquivos_gerados = [
+                arq for arq in os.listdir(pasta_res) 
+                if os.path.isfile(os.path.join(pasta_res, arq)) and not arq.startswith(".")
+            ]
+            
+            if arquivos_gerados:
+                st.divider()
+                st.subheader("📥 Relatórios Gerados Disponíveis para Download")
+                
+                for nome_arquivo in sorted(arquivos_gerados):
+                    caminho_completo = os.path.join(pasta_res, nome_arquivo)
+                    with open(caminho_completo, "rb") as f_down:
+                        conteudo_bytes = f_down.read()
+                        
+                    st.download_button(
+                        label=f"⬇️ Baixar {nome_arquivo}",
+                        data=conteudo_bytes,
+                        file_name=nome_arquivo,
+                        mime="application/octet-stream",
+                        use_container_width=True,
+                        key=f"download_{nome_arquivo}"
+                    )
 
 if __name__ == "__main__":
     main()
