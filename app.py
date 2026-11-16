@@ -204,13 +204,11 @@ def main():
                         st.error(f"Erro durante a execução da auditoria: {e}")
 
         # --- DETETOR UNIVERSAL DE RELATÓRIOS GERADOS ---
-        # Procura por qualquer ficheiro de relatório gerado em todas as pastas do projeto
         relatorios_encontrados = []
         extensoes_validas = (".html", ".xlsx", ".xls", ".csv", ".md")
         arquivos_ignorados = {"AGENTS.md", "SPECIFICATION.md", "README.md", "packages.txt"}
 
         for raiz, dirs, arquivos in os.walk("."):
-            # Ignora pastas de sistema e ambientes virtuais
             dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("__pycache__", "venv", ".git")]
             
             for arq in arquivos:
@@ -235,34 +233,6 @@ def main():
                     mime="application/octet-stream",
                     use_container_width=True,
                     key=f"download_universal_{idx}_{nome_arquivo}"
-                )
-        else:
-            st.info("ℹ️ A execução terminou. Se nenhum relatório apareceu acima, clique em 'Manage app' no canto inferior direito para ver os logs do terminal.")
-
-        # --- SEÇÃO DE DOWNLOAD DOS RELATÓRIOS HTML OFICIAIS ---
-        relatorios_oficiais = [
-            ("📊 Relatório Consolidado de Publicações (HTML)", ARQUIVO_SAIDA_PUBS_HTML),
-            ("📅 Relatório Consolidado de Eventos (HTML)", ARQUIVO_SAIDA_EVENTOS_HTML)
-        ]
-
-        relatorios_prontos = [(titulo, cam) for titulo, cam in relatorios_oficiais if os.path.exists(cam)]
-
-        if relatorios_prontos:
-            st.divider()
-            st.subheader("📥 Relatórios Gerados Disponíveis para Download")
-            
-            for idx, (titulo, caminho_html) in enumerate(relatorios_prontos):
-                nome_ficheiro = os.path.basename(caminho_html)
-                with open(caminho_html, "rb") as f_down:
-                    conteudo_bytes = f_down.read()
-                
-                st.download_button(
-                    label=f"⬇️ Baixar {titulo} ({nome_ficheiro})",
-                    data=conteudo_bytes,
-                    file_name=nome_ficheiro,
-                    mime="text/html",
-                    use_container_width=True,
-                    key=f"btn_html_{idx}"
                 )
 
 if __name__ == "__main__":
