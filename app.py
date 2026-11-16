@@ -1,15 +1,12 @@
 import streamlit as st
 import os
 import json
-import sys
 import importlib
+import urllib.parse
+import requests
 from pathlib import Path
-from google_auth_oauthlib.flow import Flow
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
-import dotenv
 
-# Configuração da página (baseada no layout do seu print)
+# Configuração da página
 st.set_page_config(page_title="LELD Docs Auditor", page_icon="🔒", layout="wide")
 
 # =====================================================================
@@ -19,52 +16,62 @@ PASTA_DADOS = Path("Dados")
 PASTA_DADOS.mkdir(exist_ok=True)
 
 # =====================================================================
-# 2. CONFIGURAÇÃO DO LOGIN GOOGLE (OAUTH 2.0)
+# 2. CONFIGURAÇÃO DO LOGIN GOOGLE (SEM BIBLIOTECAS EXTRAS)
 # =====================================================================
 REDIRECT_URI = "https://leld-docs.streamlit.app/"
-SCOPES = [
-    "openid",
-    "https://www.googleapis.com/auth/userinfo.email",
-    "https://www.googleapis.com/auth/userinfo.profile",
-]
 
 def obter_config_google():
     """Lê as credenciais do Streamlit Secrets ou do arquivo local."""
     if "google_credentials_json" in st.secrets:
-        return json.loads(st.secrets["google_credentials_json"])
+        dados = json.loads(st.secrets["google_credentials_json"])
+        return dados.get("web", dados)
     elif os.path.exists("client_secret.json"):
         with open("client_secret.json", "r", encoding="utf-8") as f:
-            return json.load(f)
+            dados = json.load(f)
+            return dados.get("web", dados)
     else:
         st.error("❌ Credenciais OAuth do Google não encontradas nos Secrets.")
         st.stop()
 
 def autenticar_usuario():
-    """Gerencia o fluxo de login com @unesp.br."""
+    """Gerencia o fluxo de login com @unesp.br usando apenas requests."""
     if "usuario_email" in st.session_state and st.session_state["usuario_email"]:
         return st.session_state["usuario_email"]
+
+    client_config = obter_config_google()
+    client_id = client_config["client_id"]
+    client_secret = client_config["client_secret"]
 
     # Verifica se o Google acabou de redirecionar de volta com o código ("code")
     query_params = st.query_params
     if "code" in query_params:
+        codigo = query_params["code"]
         try:
-            client_config = obter_config_google()
-            flow = Flow.from_client_config(
-                client_config,
-                scopes=SCOPES,
-                redirect_uri=REDIRECT_URI
-            )
-            flow.fetch_token(code=query_params["code"])
-            credentials = flow.credentials
+            # Troca o código pelo token de acesso
+            token_url = "https://oauth2.googleapis.com/token"
+            dados_token = {
+                "code": codigo,
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "redirect_uri": REDIRECT_URI,
+                "grant_type": "authorization_code",
+            }
+            res_token = requests.post(token_url, data=dados_token)
+            token_json = res_token.json()
 
-            id_info = id_token.verify_oauth2_token(
-                credentials.id_token,
-                google_requests.Request(),
-                client_config["web"]["client_id"]
-            )
-            email = id_info.get("email", "")
+            if "access_token" not in token_json:
+                st.query_params.clear()
+                st.error(f"Erro ao obter token: {token_json}")
+                st.stop()
 
-            # Limpa o parâmetro "code" da URL para não dar erro ao atualizar a página
+            # Busca o e-mail do usuário autenticado
+            user_info_ res = requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {token_json['access_token']}"}
+            )
+            user_info = user_info_res.json()
+            email = user_info.get("email", "")
+
             st.query_params.clear()
 
             if email.endswith("@unesp.br"):
@@ -78,19 +85,20 @@ def autenticar_usuario():
             st.error(f"Erro ao validar o login com o Google: {e}")
             st.stop()
 
-    # Se ainda não está logado, mostra o botão de login
-    client_config = obter_config_google()
-    flow = Flow.from_client_config(
-        client_config,
-        scopes=SCOPES,
-        redirect_uri=REDIRECT_URI
-    )
-    auth_url, _ = flow.authorization_url(prompt="select_account")
+    # Monta a URL de login do Google
+    params_auth = {
+        "client_id": client_id,
+        "redirect_uri": REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "select_account",
+    }
+    auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params_auth)}"
 
     st.title("🔒 LELD Docs Auditor")
     st.info("Faça login com a sua conta institucional da **UNESP** (`@unesp.br`) para acessar o sistema.")
     
-    # target="_top" evita o erro 403 do iframe do Streamlit
     st.markdown(
         f'<a href="{auth_url}" target="_top" style="display:inline-block; padding:10px 20px; '
         f'background-color:#0b57d0; color:white; text-decoration:none; border-radius:6px; font-weight:bold;">'
@@ -115,14 +123,13 @@ with st.sidebar:
         help="Cole aqui a sua chave gerada no Google AI Studio e pressione Enter."
     )
 
-    # BLINDAGEM DA CHAVE API: Assim que você digita, ele injeta no sistema E cria o .env temporário
     if api_key_input:
         chave_limpa = api_key_input.strip()
         os.environ["GEMINI_API_KEY"] = chave_limpa
         os.environ["GOOGLE_API_KEY"] = chave_limpa
         st.session_state["GEMINI_API_KEY"] = chave_limpa
         
-        # Cria/atualiza o arquivo .env no servidor para o script de auditoria não reclamar!
+        # Cria/atualiza o arquivo .env temporário para o motor de auditoria ler sem erro
         with open(".env", "w", encoding="utf-8") as f_env:
             f_env.write(f"GEMINI_API_KEY={chave_limpa}\n")
             f_env.write(f"GOOGLE_API_KEY={chave_limpa}\n")
@@ -179,19 +186,18 @@ if st.button("🚀 Executar Auditoria Completa", use_container_width=True, disab
     else:
         with st.spinner("⏳ Executando a auditoria dos documentos... Isso pode levar alguns instantes."):
             try:
-                # Garante mais uma vez que a chave está no ambiente e no .env antes de chamar o motor
                 chave_limpa = api_key_input.strip()
                 os.environ["GEMINI_API_KEY"] = chave_limpa
                 os.environ["GOOGLE_API_KEY"] = chave_limpa
-                
-                # Desativa o override do load_dotenv caso o script externo tente apagar a variável
-                dotenv.load_dotenv = lambda *args, **kwargs: None
 
-                # =================================================================
-                # IMPORTAÇÃO E CHAMADA DO SEU SCRIPT DE AUDITORIA
-                # (Se no seu app.py original o nome da função ou arquivo for diferente,
-                # basta manter a linha de chamada que você já usava aqui dentro!)
-                # =================================================================
+                # Desativa sobrescrita vazia do python-dotenv, se estiver instalado
+                try:
+                    import dotenv
+                    dotenv.load_dotenv = lambda *args, **kwargs: None
+                except ImportError:
+                    pass
+
+                # Chama o script de auditoria do projeto
                 if os.path.exists("auditor.py"):
                     import auditor
                     importlib.reload(auditor)
@@ -211,7 +217,7 @@ if st.button("🚀 Executar Auditoria Completa", use_container_width=True, disab
                         if resultado:
                             st.write(resultado)
                 else:
-                    st.info("Chave configurada! Verifique o nome do script de auditoria chamado no botão.")
+                    st.warning("Arquivo de auditoria principal não localizado automaticamente. Verifique o nome do script chamado.")
 
                 st.success("✅ Auditoria concluída com sucesso!")
 
