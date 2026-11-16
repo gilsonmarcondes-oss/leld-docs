@@ -211,7 +211,6 @@ def main():
                         st.error(f"Erro durante a execução da auditoria: {e}")
 
         # --- DOWNLOAD DIRETO AUTOMÁTICO DOS RELATÓRIOS OFICIAIS ---
-        # Verifica se os relatórios HTML existem na raiz ou nas pastas esperadas e disponibiliza o download direto
         candidatos_relatorios = [
             ("Relatorio_Publicacoes.html", ARQUIVO_SAIDA_PUBS_HTML),
             ("Relatorio_Eventos.html", ARQUIVO_SAIDA_EVENTOS_HTML),
@@ -235,11 +234,13 @@ def main():
                     dados_binarios = f_down.read()
                 
                 st.download_button(
-                    label=f"⬇️ Descarregar {nome_desc} (Automático)",
+                    label=f"⬇️ Descarregar {nome_desc}",
                     data=dados_binarios,
                     file_name=nome_desc,
                     mime="text/html",
                     use_container_width=True,
                     key=f"download_direto_{idx}"
                 )
+
+if __name__ == "__main__":
     main()
