@@ -59,7 +59,7 @@ def main():
         auth_url = f"{AUTH_URI}?" + urllib.parse.urlencode(auth_params)
 
         st.markdown(
-            f'<a href="{auth_url}" target="_top">'
+            f'<a href="{auth_url}" target="_blank">'
             f'<button style="background-color:#4285F4; color:white; padding:12px 24px; border:none; border-radius:6px; cursor:pointer; font-size:16px; font-weight:bold;">'
             f'🔑 Entrar com Google'
             f'</button></a>',
