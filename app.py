@@ -8,16 +8,17 @@ import sys
 # Configuração da página - DEVE SER SEMPRE O PRIMEIRO COMANDO
 st.set_page_config(page_title="LELD Docs Auditor", page_icon="🔒", layout="wide")
 
-# Importa os caminhos oficiais e o módulo principal do src/
+# Importa os caminhos oficiais definidos no seu src/config.py
 if os.path.abspath("src") not in sys.path:
     sys.path.insert(0, os.path.abspath("src"))
 
 from src.config import (
     CAMINHO_LATTES_PDF,
     CAMINHO_PUBLICACOES_PDF,
-    CAMINHO_EVENTOS_PDF
+    CAMINHO_EVENTOS_PDF,
+    ARQUIVO_SAIDA_PUBS_HTML,
+    ARQUIVO_SAIDA_EVENTOS_HTML
 )
-
 # Tenta importar a função main do main.py para execução direta
 try:
     import main as auditor_main
