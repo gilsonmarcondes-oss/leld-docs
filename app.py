@@ -195,7 +195,7 @@ def main():
 
         st.divider()
 
-        # Botão de execução da auditoria com chamada direta e segura
+        # Botão de execução da auditoria
         if st.button("🚀 Executar Auditoria Completa", use_container_width=True):
             if not os.environ.get("GEMINI_API_KEY"):
                 st.error("❌ Por favor, insira a sua Google API Key na barra lateral antes de executar a auditoria.")
@@ -205,41 +205,41 @@ def main():
                 with st.spinner("⏳ A executar o pipeline de auditoria... Isso pode levar alguns minutos. Aguarde."):
                     try:
                         auditor_main.main()
+                        st.session_state.auditoria_concluida = True
                         st.success("✨ Processamento de auditoria finalizado com sucesso!")
                     except Exception as e:
                         st.error(f"Erro durante a execução da auditoria: {e}")
 
-        # --- DETETOR UNIVERSAL DE RELATÓRIOS GERADOS ---
-        relatorios_encontrados = []
-        extensoes_validas = (".html", ".xlsx", ".xls", ".csv", ".md")
-        arquivos_ignorados = {"AGENTS.md", "SPECIFICATION.md", "README.md", "packages.txt"}
+        # --- DOWNLOAD DIRETO AUTOMÁTICO DOS RELATÓRIOS OFICIAIS ---
+        # Verifica se os relatórios HTML existem na raiz ou nas pastas esperadas e disponibiliza o download direto
+        candidatos_relatorios = [
+            ("Relatorio_Publicacoes.html", ARQUIVO_SAIDA_PUBS_HTML),
+            ("Relatorio_Eventos.html", ARQUIVO_SAIDA_EVENTOS_HTML),
+            ("relatorio_publicacoes.html", "relatorio_publicacoes.html"),
+            ("relatorio_eventos.html", "relatorio_eventos.html")
+        ]
 
-        for raiz, dirs, arquivos in os.walk("."):
-            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("__pycache__", "venv", ".git")]
-            
-            for arq in arquivos:
-                if arq in arquivos_ignorados or arq.startswith("."):
-                    continue
-                if arq.lower().endswith(extensoes_validas):
-                    caminho_completo = os.path.join(raiz, arq)
-                    relatorios_encontrados.append((arq, caminho_completo))
+        encontrados_para_baixar = []
+        for nome_desc, caminho in candidatos_relatorios:
+            if caminho and os.path.exists(caminho):
+                encontrados_para_baixar.append((nome_desc, caminho))
+            elif os.path.exists(nome_desc):
+                encontrados_para_baixar.append((nome_desc, nome_desc))
 
-        if relatorios_encontrados:
+        if encontrados_para_baixar:
             st.divider()
-            st.subheader("📥 Relatórios Gerados Disponíveis para Download")
+            st.subheader("📥 Clique abaixo para descarregar os relatórios gerados:")
             
-            for idx, (nome_arquivo, caminho_completo) in enumerate(sorted(relatorios_encontrados)):
-                with open(caminho_completo, "rb") as f_down:
-                    conteudo_bytes = f_down.read()
-                    
+            for idx, (nome_desc, caminho_real) in enumerate(encontrados_para_baixar):
+                with open(caminho_real, "rb") as f_down:
+                    dados_binarios = f_down.read()
+                
                 st.download_button(
-                    label=f"⬇️ Baixar {nome_arquivo}  (Local: {caminho_completo})",
-                    data=conteudo_bytes,
-                    file_name=nome_arquivo,
-                    mime="application/octet-stream",
+                    label=f"⬇️ Descarregar {nome_desc} (Automático)",
+                    data=dados_binarios,
+                    file_name=nome_desc,
+                    mime="text/html",
                     use_container_width=True,
-                    key=f"download_universal_{idx}_{nome_arquivo}"
+                    key=f"download_direto_{idx}"
                 )
-
-if __name__ == "__main__":
     main()
