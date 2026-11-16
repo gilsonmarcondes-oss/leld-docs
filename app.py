@@ -3,12 +3,24 @@ import json
 import requests
 import urllib.parse
 import os
+import sys
 
 # Configuração da página - DEVE SER SEMPRE O PRIMEIRO COMANDO
 st.set_page_config(page_title="LELD Docs Auditor", page_icon="🔒", layout="wide")
 
+# Importa os caminhos oficiais definidos no seu src/config.py
+if os.path.abspath("src") not in sys.path:
+    sys.path.insert(0, os.path.abspath("src"))
+
+from src.config import (
+    CAMINHO_LATTES_PDF,
+    CAMINHO_PUBLICACOES_PDF,
+    CAMINHO_EVENTOS_PDF,
+    ARQUIVO_SAIDA_PUBS_HTML,
+    ARQUIVO_SAIDA_EVENTOS_HTML
+)
+
 # --- INÍCIO DA CONFIGURAÇÃO DE SEGURANÇA (COFRE) ---
-# Cria o arquivo de credenciais a partir do cofre (Secrets) ANTES de o ler
 if not os.path.exists("google_credentials.json"):
     try:
         with open("google_credentials.json", "w") as f:
@@ -22,7 +34,6 @@ if not os.path.exists("google_credentials.json"):
 try:
     with open('google_credentials.json', 'r') as f:
         creds_data = json.load(f)
-        # Converte as chaves em lista antes de aceder ao índice [0]
         client_type = list(creds_data.keys())[0] 
         CLIENT_ID = creds_data[client_type]['client_id']
         CLIENT_SECRET = creds_data[client_type]['client_secret']
@@ -32,8 +43,15 @@ except Exception as e:
     st.error(f"Erro ao carregar o ficheiro 'google_credentials.json': {e}")
     st.stop()
 
-# ATUALIZADO: Usar a URL oficial do Streamlit em vez do localhost!
 REDIRECT_URI = 'https://leld-docs.streamlit.app'
+
+def salvar_pdf_upload(uploaded_file, caminho_destino):
+    """Garante que a pasta existe e salva o PDF exatamente onde o config.py espera."""
+    pasta = os.path.dirname(caminho_destino)
+    if pasta:
+        os.makedirs(pasta, exist_ok=True)
+    with open(caminho_destino, "wb") as f:
+        f.write(uploaded_file.getbuffer())
 
 def main():
     st.title("🔒 LELD Docs Auditor")
@@ -92,7 +110,6 @@ def main():
                     user_info = user_response.json()
                     email = user_info.get('email')
 
-                    # Validação automática para domínios da UNESP e o seu e-mail pessoal
                     if email.endswith("@unesp.br") or email == "gilsonmarcondes@gmail.com":
                         st.session_state.authenticated = True
                         st.session_state.user_email = email
@@ -114,7 +131,6 @@ def main():
             st.success(f"Sessão iniciada como:\n**{st.session_state.user_email}**")
             st.divider()
             
-            # Campo para o utilizador inserir a sua própria Chave da API do Google Gemini
             st.subheader("🔑 Configuração da API")
             user_api_key = st.text_input(
                 "Insira a sua Google API Key", 
@@ -124,11 +140,9 @@ def main():
             
             if user_api_key:
                 chave_limpa = user_api_key.strip()
-                # Injeta a chave nos dois nomes de variáveis (GOOGLE_API_KEY e GEMINI_API_KEY)
                 os.environ["GOOGLE_API_KEY"] = chave_limpa
                 os.environ["GEMINI_API_KEY"] = chave_limpa
                 
-                # Cria também o arquivo .env para o src/main.py ler sem reclamar
                 with open(".env", "w", encoding="utf-8") as f_env:
                     f_env.write(f"GEMINI_API_KEY={chave_limpa}\n")
                     f_env.write(f"GOOGLE_API_KEY={chave_limpa}\n")
@@ -141,7 +155,6 @@ def main():
             if st.button("🚪 Terminar Sessão", use_container_width=True):
                 st.session_state.authenticated = False
                 st.session_state.user_email = None
-                # Limpa a chave de API da memória e apaga o .env temporário ao sair
                 for var in ["GOOGLE_API_KEY", "GEMINI_API_KEY"]:
                     if var in os.environ:
                         del os.environ[var]
@@ -152,89 +165,74 @@ def main():
 
         st.success("Acesso autorizado! Pode iniciar a preparação dos documentos.")
         st.subheader("📁 Gestão de Documentos para Auditoria")
-        st.write("Faça o upload dos ficheiros PDF do docente abaixo. Eles substituirão automaticamente os anteriores na pasta `Dados/`.")
-
-        # Garantir que a pasta Dados existe
-        os.makedirs("Dados", exist_ok=True)
+        st.write("Faça o upload dos ficheiros PDF do docente abaixo.")
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
             lattes_file = st.file_uploader("Currículo Lattes (PDF)", type=["pdf"], key="lattes")
             if lattes_file:
-                with open(os.path.join("Dados", "Lattes.pdf"), "wb") as f:
-                    f.write(lattes_file.getbuffer())
-                st.success("Lattes.pdf atualizado!")
+                salvar_pdf_upload(lattes_file, CAMINHO_LATTES_PDF)
+                st.success(f"Salvo em: `{os.path.basename(CAMINHO_LATTES_PDF)}`")
 
         with col2:
             pubs_file = st.file_uploader("Publicações (PDF)", type=["pdf"], key="pubs")
             if pubs_file:
-                with open(os.path.join("Dados", "Publicacoes.pdf"), "wb") as f:
-                    f.write(pubs_file.getbuffer())
-                st.success("Publicacoes.pdf atualizado!")
+                salvar_pdf_upload(pubs_file, CAMINHO_PUBLICACOES_PDF)
+                st.success(f"Salvo em: `{os.path.basename(CAMINHO_PUBLICACOES_PDF)}`")
 
         with col3:
             eventos_file = st.file_uploader("Eventos (PDF)", type=["pdf"], key="eventos")
             if eventos_file:
-                with open(os.path.join("Dados", "Eventos.pdf"), "wb") as f:
-                    f.write(eventos_file.getbuffer())
-                st.success("Eventos.pdf atualizado!")
+                salvar_pdf_upload(eventos_file, CAMINHO_EVENTOS_PDF)
+                st.success(f"Salvo em: `{os.path.basename(CAMINHO_EVENTOS_PDF)}`")
 
         st.divider()
 
-        # Validação cruzada: botão só executa se a chave existir no ambiente
+        # Botão de execução da auditoria
         if st.button("🚀 Executar Auditoria Completa", use_container_width=True):
             if not os.environ.get("GEMINI_API_KEY"):
                 st.error("❌ Por favor, insira a sua Google API Key na barra lateral antes de executar a auditoria.")
             else:
-                # Limpa relatórios antigos antes de rodar uma nova auditoria (opcional, evita baixar arquivo velho)
-                os.makedirs("Resultados", exist_ok=True)
-                
-                with st.spinner("⏳ A executar o pipeline de auditoria... Isso pode levar alguns minutos."):
+                # Remove relatórios antigos antes de começar para garantir que o download seja sempre o mais recente
+                for arq_antigo in [ARQUIVO_SAIDA_PUBS_HTML, ARQUIVO_SAIDA_EVENTOS_HTML]:
+                    if os.path.exists(arq_antigo):
+                        os.remove(arq_antigo)
+
+                with st.spinner("⏳ A executar o pipeline de auditoria... Acompanhe o progresso e aguarde a conclusão."):
                     try:
                         with open("src/main.py", encoding="utf-8") as f:
                             code = f.read()
                         exec(code, {"__name__": "__main__", "__file__": "src/main.py"})
-                        st.success("✨ Processamento de auditoria finalizado! Baixe os arquivos abaixo.")
+                        st.success("✨ Processamento de auditoria finalizado! Baixe os relatórios abaixo.")
                     except Exception as e:
                         st.error(f"Erro durante a execução da auditoria: {e}")
 
-       # --- SEÇÃO DE DOWNLOAD DOS RESULTADOS (BUSCA AUTOMÁTICA EM TODAS AS PASTAS) ---
-        arquivos_encontrados = []
-        ignorados = {"Lattes.pdf", "Publicacoes.pdf", "Eventos.pdf", "google_credentials.json", "requirements.txt", "README.md"}
-        extensoes_relatorio = (".xlsx", ".xls", ".docx", ".doc", ".pdf", ".md", ".txt", ".csv", ".html")
+        # --- SEÇÃO DE DOWNLOAD DOS RELATÓRIOS HTML OFICIAIS ---
+        relatorios_oficiais = [
+            ("📊 Relatório Consolidado de Publicações (HTML)", ARQUIVO_SAIDA_PUBS_HTML),
+            ("📅 Relatório Consolidado de Eventos (HTML)", ARQUIVO_SAIDA_EVENTOS_HTML)
+        ]
 
-        # Procura primeiro nas pastas de resultados mais comuns e depois no resto do projeto
-        for raiz, dirs, arquivos in os.walk("."):
-            # Ignora pastas ocultas do sistema (.git, .streamlit, __pycache__, etc.)
-            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__" and d != "venv"]
-            
-            for arq in arquivos:
-                if arq in ignorados or arq.startswith(".") or arq.endswith(".py"):
-                    continue
-                # Se estiver dentro de uma pasta chamada Resultados/output OU tiver extensão de relatório
-                if "resultado" in raiz.lower() or "output" in raiz.lower() or arq.lower().endswith(extensoes_relatorio):
-                    caminho_completo = os.path.join(raiz, arq)
-                    arquivos_encontrados.append((arq, caminho_completo))
+        relatorios_prontos = [(titulo, cam) for titulo, cam in relatorios_oficiais if os.path.exists(cam)]
 
-        if arquivos_encontrados:
+        if relatorios_prontos:
             st.divider()
             st.subheader("📥 Relatórios Gerados Disponíveis para Download")
             
-            for idx, (nome_arquivo, caminho_completo) in enumerate(sorted(arquivos_encontrados)):
-                with open(caminho_completo, "rb") as f_down:
+            for idx, (titulo, caminho_html) in enumerate(relatorios_prontos):
+                nome_ficheiro = os.path.basename(caminho_html)
+                with open(caminho_html, "rb") as f_down:
                     conteudo_bytes = f_down.read()
-                    
+                
                 st.download_button(
-                    label=f"⬇️ Baixar {nome_arquivo}  ({caminho_completo})",
+                    label=f"⬇️ Baixar {titulo} ({nome_ficheiro})",
                     data=conteudo_bytes,
-                    file_name=nome_arquivo,
-                    mime="application/octet-stream",
+                    file_name=nome_ficheiro,
+                    mime="text/html",
                     use_container_width=True,
-                    key=f"download_{idx}_{nome_arquivo}"
+                    key=f"btn_html_{idx}"
                 )
-        else:
-            st.info("ℹ️ Nenhum ficheiro de relatório foi detetado nas pastas ainda.")
 
 if __name__ == "__main__":
     main()
