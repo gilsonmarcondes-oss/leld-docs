@@ -194,19 +194,50 @@ def main():
             if not os.environ.get("GEMINI_API_KEY"):
                 st.error("❌ Por favor, insira a sua Google API Key na barra lateral antes de executar a auditoria.")
             else:
-                # Remove relatórios antigos antes de começar para garantir que o download seja sempre o mais recente
-                for arq_antigo in [ARQUIVO_SAIDA_PUBS_HTML, ARQUIVO_SAIDA_EVENTOS_HTML]:
-                    if os.path.exists(arq_antigo):
-                        os.remove(arq_antigo)
-
                 with st.spinner("⏳ A executar o pipeline de auditoria... Acompanhe o progresso e aguarde a conclusão."):
                     try:
                         with open("src/main.py", encoding="utf-8") as f:
                             code = f.read()
                         exec(code, {"__name__": "__main__", "__file__": "src/main.py"})
-                        st.success("✨ Processamento de auditoria finalizado! Baixe os relatórios abaixo.")
+                        st.success("✨ Processamento de auditoria finalizado! Verifique os relatórios abaixo.")
                     except Exception as e:
                         st.error(f"Erro durante a execução da auditoria: {e}")
+
+        # --- DETETOR UNIVERSAL DE RELATÓRIOS GERADOS ---
+        # Procura por qualquer ficheiro de relatório gerado em todas as pastas do projeto
+        relatorios_encontrados = []
+        extensoes_validas = (".html", ".xlsx", ".xls", ".csv", ".md")
+        arquivos_ignorados = {"AGENTS.md", "SPECIFICATION.md", "README.md", "packages.txt"}
+
+        for raiz, dirs, arquivos in os.walk("."):
+            # Ignora pastas de sistema e ambientes virtuais
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("__pycache__", "venv", ".git")]
+            
+            for arq in arquivos:
+                if arq in arquivos_ignorados or arq.startswith("."):
+                    continue
+                if arq.lower().endswith(extensoes_validas):
+                    caminho_completo = os.path.join(raiz, arq)
+                    relatorios_encontrados.append((arq, caminho_completo))
+
+        if relatorios_encontrados:
+            st.divider()
+            st.subheader("📥 Relatórios Gerados Disponíveis para Download")
+            
+            for idx, (nome_arquivo, caminho_completo) in enumerate(sorted(relatorios_encontrados)):
+                with open(caminho_completo, "rb") as f_down:
+                    conteudo_bytes = f_down.read()
+                    
+                st.download_button(
+                    label=f"⬇️ Baixar {nome_arquivo}  (Local: {caminho_completo})",
+                    data=conteudo_bytes,
+                    file_name=nome_arquivo,
+                    mime="application/octet-stream",
+                    use_container_width=True,
+                    key=f"download_universal_{idx}_{nome_arquivo}"
+                )
+        else:
+            st.info("ℹ️ A execução terminou. Se nenhum relatório apareceu acima, clique em 'Manage app' no canto inferior direito para ver os logs do terminal.")
 
         # --- SEÇÃO DE DOWNLOAD DOS RELATÓRIOS HTML OFICIAIS ---
         relatorios_oficiais = [
