@@ -8,7 +8,7 @@ import sys
 # Configuração da página - DEVE SER SEMPRE O PRIMEIRO COMANDO
 st.set_page_config(page_title="LELD Docs Auditor", page_icon="🔒", layout="wide")
 
-# Importa os caminhos oficiais definidos no seu src/config.py
+# Importa os caminhos oficiais e o módulo principal do src/
 if os.path.abspath("src") not in sys.path:
     sys.path.insert(0, os.path.abspath("src"))
 
