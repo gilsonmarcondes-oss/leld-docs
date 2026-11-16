@@ -8,7 +8,7 @@ import sys
 # Configuração da página - DEVE SER SEMPRE O PRIMEIRO COMANDO
 st.set_page_config(page_title="LELD Docs Auditor", page_icon="🔒", layout="wide")
 
-# Importa os caminhos oficiais definidos no seu src/config.py
+# Importa os caminhos oficiais e o módulo principal do src/
 if os.path.abspath("src") not in sys.path:
     sys.path.insert(0, os.path.abspath("src"))
 
@@ -19,6 +19,12 @@ from src.config import (
     ARQUIVO_SAIDA_PUBS_HTML,
     ARQUIVO_SAIDA_EVENTOS_HTML
 )
+
+# Tenta importar a função main do main.py para execução direta
+try:
+    import main as auditor_main
+except ImportError:
+    auditor_main = None
 
 # --- INÍCIO DA CONFIGURAÇÃO DE SEGURANÇA (COFRE) ---
 if not os.path.exists("google_credentials.json"):
@@ -189,17 +195,17 @@ def main():
 
         st.divider()
 
-        # Botão de execução da auditoria
+        # Botão de execução da auditoria com chamada direta e segura
         if st.button("🚀 Executar Auditoria Completa", use_container_width=True):
             if not os.environ.get("GEMINI_API_KEY"):
                 st.error("❌ Por favor, insira a sua Google API Key na barra lateral antes de executar a auditoria.")
+            elif not auditor_main:
+                st.error("❌ O módulo de auditoria (src/main.py) não foi localizado corretamente.")
             else:
-                with st.spinner("⏳ A executar o pipeline de auditoria... Acompanhe o progresso e aguarde a conclusão."):
+                with st.spinner("⏳ A executar o pipeline de auditoria... Isso pode levar alguns minutos. Aguarde."):
                     try:
-                        with open("src/main.py", encoding="utf-8") as f:
-                            code = f.read()
-                        exec(code, {"__name__": "__main__", "__file__": "src/main.py"})
-                        st.success("✨ Processamento de auditoria finalizado! Verifique os relatórios abaixo.")
+                        auditor_main.main()
+                        st.success("✨ Processamento de auditoria finalizado com sucesso!")
                     except Exception as e:
                         st.error(f"Erro durante a execução da auditoria: {e}")
 
