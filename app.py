@@ -205,24 +205,40 @@ def main():
             else:
                 with st.spinner("⏳ A executar o pipeline de auditoria... Isso pode levar alguns minutos. Aguarde."):
                     try:
-                        # Executa o main.py original
+                        # Executa o main.py original sem alterações
                         auditor_main.main()
-                        
-                        # VARREDURA UNIVERSAL PROFUNDA DE QUALQUER HTML GERADO
-                        st.session_state.relatorios_salvos_sessao = {}
-                        
-                        for raiz, dirs, arquivos in os.walk("."):
-                            # Ignora pastas de sistema
-                            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("__pycache__", "venv", ".git")]
-                            for arq in arquivos:
-                                if arq.lower().endswith(".html") and arq not in {"index.html"}:
-                                    caminho_completo = os.path.join(raiz, arq)
-                                    with open(caminho_completo, "rb") as f_rd:
-                                        st.session_state.relatorios_salvos_sessao[arq] = f_rd.read()
-
+                        st.session_state.auditoria_concluida = True
                         st.success("✨ Processamento de auditoria finalizado com sucesso!")
                     except Exception as e:
                         st.error(f"Erro durante a execução da auditoria: {e}")
+
+        # --- EXIBIÇÃO DOS RELATÓRIOS OFICIAIS GERADOS ---
+        # Lê diretamente os caminhos definidos no config.py usados pelo main.py
+        relatorios_oficiais = [
+            ("Relatório Consolidado de Publicações", ARQUIVO_SAIDA_PUBS_HTML),
+            ("Relatório Consolidado de Eventos", ARQUIVO_SAIDA_EVENTOS_HTML)
+        ]
+
+        # Filtra apenas os que realmente existem no disco após a execução
+        encontrados = [(titulo, caminho) for titulo, caminho in relatorios_oficiais if caminho and os.path.exists(caminho)]
+
+        if encontrados:
+            st.divider()
+            st.subheader("📥 Relatórios Gerados Disponíveis para Download:")
+            
+            for idx, (titulo, caminho_html) in enumerate(encontrados):
+                nome_ficheiro = os.path.basename(caminho_html)
+                with open(caminho_html, "rb") as f_down:
+                    conteudo_bytes = f_down.read()
+                
+                st.download_button(
+                    label=f"⬇️ Descarregar {titulo} ({nome_ficheiro})",
+                    data=conteudo_bytes,
+                    file_name=nome_ficheiro,
+                    mime="text/html",
+                    use_container_width=True,
+                    key=f"download_oficial_{idx}"
+                )
 
         # --- EXIBIÇÃO DOS BOTÕES DE DOWNLOAD ---
         if st.session_state.relatorios_salvos_sessao:
