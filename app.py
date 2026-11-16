@@ -199,33 +199,42 @@ def main():
                     except Exception as e:
                         st.error(f"Erro durante a execução da auditoria: {e}")
 
-        # --- SEÇÃO DE DOWNLOAD DOS RESULTADOS ---
-        # Verifica se existem arquivos na pasta Resultados (ou resultados) e exibe botões de download
-        pasta_res = "Resultados" if os.path.exists("Resultados") else ("resultados" if os.path.exists("resultados") else None)
-        
-        if pasta_res:
-            arquivos_gerados = [
-                arq for arq in os.listdir(pasta_res) 
-                if os.path.isfile(os.path.join(pasta_res, arq)) and not arq.startswith(".")
-            ]
+       # --- SEÇÃO DE DOWNLOAD DOS RESULTADOS (BUSCA AUTOMÁTICA EM TODAS AS PASTAS) ---
+        arquivos_encontrados = []
+        ignorados = {"Lattes.pdf", "Publicacoes.pdf", "Eventos.pdf", "google_credentials.json", "requirements.txt", "README.md"}
+        extensoes_relatorio = (".xlsx", ".xls", ".docx", ".doc", ".pdf", ".md", ".txt", ".csv", ".html")
+
+        # Procura primeiro nas pastas de resultados mais comuns e depois no resto do projeto
+        for raiz, dirs, arquivos in os.walk("."):
+            # Ignora pastas ocultas do sistema (.git, .streamlit, __pycache__, etc.)
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__" and d != "venv"]
             
-            if arquivos_gerados:
-                st.divider()
-                st.subheader("📥 Relatórios Gerados Disponíveis para Download")
-                
-                for nome_arquivo in sorted(arquivos_gerados):
-                    caminho_completo = os.path.join(pasta_res, nome_arquivo)
-                    with open(caminho_completo, "rb") as f_down:
-                        conteudo_bytes = f_down.read()
-                        
-                    st.download_button(
-                        label=f"⬇️ Baixar {nome_arquivo}",
-                        data=conteudo_bytes,
-                        file_name=nome_arquivo,
-                        mime="application/octet-stream",
-                        use_container_width=True,
-                        key=f"download_{nome_arquivo}"
-                    )
+            for arq in arquivos:
+                if arq in ignorados or arq.startswith(".") or arq.endswith(".py"):
+                    continue
+                # Se estiver dentro de uma pasta chamada Resultados/output OU tiver extensão de relatório
+                if "resultado" in raiz.lower() or "output" in raiz.lower() or arq.lower().endswith(extensoes_relatorio):
+                    caminho_completo = os.path.join(raiz, arq)
+                    arquivos_encontrados.append((arq, caminho_completo))
+
+        if arquivos_encontrados:
+            st.divider()
+            st.subheader("📥 Relatórios Gerados Disponíveis para Download")
+            
+            for idx, (nome_arquivo, caminho_completo) in enumerate(sorted(arquivos_encontrados)):
+                with open(caminho_completo, "rb") as f_down:
+                    conteudo_bytes = f_down.read()
+                    
+                st.download_button(
+                    label=f"⬇️ Baixar {nome_arquivo}  ({caminho_completo})",
+                    data=conteudo_bytes,
+                    file_name=nome_arquivo,
+                    mime="application/octet-stream",
+                    use_container_width=True,
+                    key=f"download_{idx}_{nome_arquivo}"
+                )
+        else:
+            st.info("ℹ️ Nenhum ficheiro de relatório foi detetado nas pastas ainda.")
 
 if __name__ == "__main__":
     main()
