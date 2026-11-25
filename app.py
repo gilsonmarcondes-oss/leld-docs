@@ -5,6 +5,7 @@ import urllib.parse
 import gdown
 import requests
 import streamlit as st
+import re
 
 # Configuração da página - DEVE SER SEMPRE O PRIMEIRO COMANDO
 st.set_page_config(page_title="LELD Docs Auditor", page_icon="🔒", layout="wide")
@@ -79,11 +80,17 @@ def baixar_pdf_drive(url_drive: str, caminho_destino: str):
     if pasta:
         os.makedirs(pasta, exist_ok=True)
 
+    url_limpa = url_drive.strip()
+    match = re.search(r"(?:/d/|id=)([a-zA-Z0-9_-]{25,})", url_limpa)
+    if match:
+        url_download = f"https://drive.google.com/uc?id={match.group(1)}"
+    else:
+        url_download = url_limpa
+
     resultado = gdown.download(
-        url=url_drive.strip(),
+        url=url_download,
         output=caminho_destino,
         quiet=True,
-        fuzzy=True,
     )
 
     if not resultado or not os.path.exists(caminho_destino):
