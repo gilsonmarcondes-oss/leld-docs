@@ -29,7 +29,7 @@ Sua única tarefa é extrair as publicações acadêmicas presentes no texto for
 Siga rigorosamente a seguinte estrutura para a lista JSON:
 [
   {
-    "docente": "Nome do Docente Identificado",
+    "docente": "Nome do Docente Auditado",
     "tipo_publicacao": "Artigo em Periódico" ou "Capítulo de Livro",
     "titulo": "Título Completo da Publicação",
     "ano": "YYYY",
@@ -43,6 +43,7 @@ Regras Rígidas:
 1. Retorne APENAS o array JSON válido (sem textos explicativos antes ou depois, sem markdown extra além do bloco ```json se necessário).
 2. Se nenhum registro de publicação for encontrado na fatia fornecida, retorne um array vazio: [].
 3. Classifique 'relacao_graduacao' comparando o ano da publicação com o ano da graduação fornecido no prompt (Ano < Ano_Graduacao -> 'Anterior', caso contrário 'Posterior').
+4. REGRA DE AUTORIA / DOCENTE: O campo 'docente' deve conter obrigatoriamente o nome completo do docente que está sendo auditado (conforme fornecido no prompt), e NÃO o primeiro autor da referência bibliográfica caso sejam diferentes. Se a publicação pertence ao docente auditado, registre exatamente o nome do docente auditado.
 """
 
 INSTRUCAO_SISTEMA_JSON_EVENTOS = """
@@ -52,7 +53,7 @@ Sua única tarefa é extrair as participações em eventos (congressos, seminár
 Siga rigorosamente a seguinte estrutura para a lista JSON:
 [
   {
-    "docente": "Nome do Docente Identificado",
+    "docente": "Nome do Docente Auditado",
     "tipo_evento": "Participação em Evento",
     "nome_evento": "Nome Completo do Evento",
     "papel": "Com Apresentação de Trabalho" ou "Sem Apresentação / Ouvinte" ou "Organizador / Comitê",
@@ -71,6 +72,8 @@ Regras Gerais:
 1. Retorne APENAS o array JSON válido.
 2. Se nenhum registro for encontrado na fatia fornecida, retorne [].
 3. Classifique 'relacao_graduacao' comparando o ano do evento com o ano da graduação fornecido no prompt (Ano < Ano_Graduacao -> 'Anterior', caso contrário 'Posterior').
+4. REGRA DE UNICIDADE DO EVENTO: A participação do docente em um mesmo evento acadêmico (congresso, simpósio, seminário, conferência) é ÚNICA por ano/evento. Se o documento contiver múltiplos certificados, comprovantes de diferentes trabalhos apresentados, painéis ou comunicações no MESMO evento, você deve consolidá-los em um único registro para aquele evento, escolhendo o papel mais relevante (ex: 'Com Apresentação de Trabalho'). Nunca duplique registros para o mesmo evento devido a múltiplos trabalhos apresentados.
+5. REGRA DE AUTORIA / DOCENTE: O campo 'docente' deve conter obrigatoriamente o nome completo do docente que está sendo auditado (conforme fornecido no prompt).
 """
 
 
@@ -100,7 +103,7 @@ Analise os dados extraídos do arquivo de publicações com base nas referência
 - Nome do Arquivo: {nome_arquivo}
 - Total de Páginas: {total_paginas}
 
-Extraia todas as publicações acadêmicas (Artigos em Periódicos e Capítulos de Livros), auditando a autoria, ano e relação temporal com a graduação.
+Extraia todas as publicações acadêmicas (Artigos em Periódicos e Capítulos de Livros), auditando a autoria (atribuindo o nome do docente auditado ao campo 'docente'), ano e relação temporal com a graduação.
 </instruction>
 
 <document_data>
