@@ -203,38 +203,38 @@ def main():
 
        LIMITE_UPLOAD_MB = 500
 
-with col1:
-    lattes_file = st.file_uploader(
-        "Currículo Lattes (PDF)",
-        type=["pdf"],
-        key="lattes",
-        max_upload_size=LIMITE_UPLOAD_MB,
-    )
-    if lattes_file:
-        salvar_pdf_upload(lattes_file, CAMINHO_LATTES_PDF)
-        st.success(f"Salvo em: `{os.path.basename(CAMINHO_LATTES_PDF)}`")
+        with col1:
+            lattes_file = st.file_uploader(
+                "Currículo Lattes (PDF)",
+                type=["pdf"],
+                key="lattes",
+                max_upload_size=LIMITE_UPLOAD_MB,
+            )
+            if lattes_file:
+                salvar_pdf_upload(lattes_file, CAMINHO_LATTES_PDF)
+                st.success(f"Salvo em: `{os.path.basename(CAMINHO_LATTES_PDF)}`")
 
-with col2:
-    pubs_file = st.file_uploader(
-        "Publicações (PDF)",
-        type=["pdf"],
-        key="pubs",
-        max_upload_size=LIMITE_UPLOAD_MB,
-    )
-    if pubs_file:
-        salvar_pdf_upload(pubs_file, CAMINHO_PUBLICACOES_PDF)
-        st.success(f"Salvo em: `{os.path.basename(CAMINHO_PUBLICACOES_PDF)}`")
+        with col2:
+            pubs_file = st.file_uploader(
+                "Publicações (PDF)",
+                type=["pdf"],
+                key="pubs",
+                max_upload_size=LIMITE_UPLOAD_MB,
+            )
+            if pubs_file:
+                salvar_pdf_upload(pubs_file, CAMINHO_PUBLICACOES_PDF)
+                st.success(f"Salvo em: `{os.path.basename(CAMINHO_PUBLICACOES_PDF)}`")
 
-with col3:
-    eventos_file = st.file_uploader(
-        "Eventos (PDF)",
-        type=["pdf"],
-        key="eventos",
-        max_upload_size=LIMITE_UPLOAD_MB,
-    )
-    if eventos_file:
-        salvar_pdf_upload(eventos_file, CAMINHO_EVENTOS_PDF)
-        st.success(f"Salvo em: `{os.path.basename(CAMINHO_EVENTOS_PDF)}`")
+        with col3:
+            eventos_file = st.file_uploader(
+                "Eventos (PDF)",
+                type=["pdf"],
+                key="eventos",
+                max_upload_size=LIMITE_UPLOAD_MB,
+            )
+            if eventos_file:
+                salvar_pdf_upload(eventos_file, CAMINHO_EVENTOS_PDF)
+                st.success(f"Salvo em: `{os.path.basename(CAMINHO_EVENTOS_PDF)}`")
 
         st.divider()
 
