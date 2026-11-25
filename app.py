@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import urllib.parse
+import gdown
 import requests
 import streamlit as st
 
@@ -70,6 +71,71 @@ def salvar_pdf_upload(uploaded_file, caminho_destino):
         os.makedirs(pasta, exist_ok=True)
     with open(caminho_destino, "wb") as f:
         f.write(uploaded_file.getbuffer())
+
+
+def baixar_pdf_drive(url_drive: str, caminho_destino: str):
+    """Baixa um PDF do Google Drive diretamente para o disco em streaming."""
+    pasta = os.path.dirname(caminho_destino)
+    if pasta:
+        os.makedirs(pasta, exist_ok=True)
+
+    resultado = gdown.download(
+        url=url_drive.strip(),
+        output=caminho_destino,
+        quiet=True,
+        fuzzy=True,
+    )
+
+    if not resultado or not os.path.exists(caminho_destino):
+        raise ValueError(
+            "Não foi possível baixar o arquivo. Verifique o link e se ele está compartilhado como 'Qualquer pessoa com o link'."
+        )
+
+    with open(caminho_destino, "rb") as f:
+        cabecalho = f.read(4)
+    if cabecalho != b"%PDF":
+        os.remove(caminho_destino)
+        raise ValueError(
+            "O link não retornou um PDF válido. Confirme se o acesso está como 'Qualquer pessoa com o link'."
+        )
+
+
+def renderizar_seletor_pdf(titulo: str, caminho_destino: str, chave: str, limite_mb: int = 200):
+    """Exibe abas de Upload direto e Link do Google Drive para um documento."""
+    st.markdown(f"**{titulo}**")
+    aba_upload, aba_drive = st.tabs(["📤 Upload", "🔗 Google Drive"])
+
+    with aba_upload:
+        arquivo = st.file_uploader(
+            f"Enviar {titulo}",
+            type=["pdf"],
+            key=f"upload_{chave}",
+            max_upload_size=limite_mb,
+            label_visibility="collapsed",
+        )
+        if arquivo:
+            salvar_pdf_upload(arquivo, caminho_destino)
+
+    with aba_drive:
+        url_drive = st.text_input(
+            "Link do Google Drive",
+            placeholder="https://drive.google.com/file/d/...",
+            key=f"drive_url_{chave}",
+            label_visibility="collapsed",
+        )
+        if st.button("⬇️ Baixar do Drive", key=f"btn_drive_{chave}", use_container_width=True):
+            if not url_drive.strip():
+                st.warning("Cole o link do Google Drive primeiro.")
+            else:
+                with st.spinner("Baixando PDF do Google Drive..."):
+                    try:
+                        baixar_pdf_drive(url_drive, caminho_destino)
+                    except Exception as e:
+                        st.error(f"Erro ao baixar: {e}")
+
+    if os.path.exists(caminho_destino):
+        tamanho_mb = os.path.getsize(caminho_destino) / (1024 * 1024)
+        st.success(f"Pronto: `{os.path.basename(caminho_destino)}` ({tamanho_mb:.1f} MB)")
 
 
 def aplicar_chave_api(chave: str):
@@ -197,44 +263,18 @@ def main():
 
         st.success("Acesso autorizado! Pode iniciar a preparação dos documentos.")
         st.subheader("📁 Gestão de Documentos para Auditoria")
-        st.write("Faça o upload dos ficheiros PDF do docente abaixo.")
+        st.write("Faça o upload dos ficheiros PDF abaixo ou cole o link do Google Drive (para arquivos grandes).")
 
         col1, col2, col3 = st.columns(3)
 
-        LIMITE_UPLOAD_MB = 500
-
         with col1:
-            lattes_file = st.file_uploader(
-                "Currículo Lattes (PDF)",
-                type=["pdf"],
-                key="lattes",
-                max_upload_size=LIMITE_UPLOAD_MB,
-            )
-            if lattes_file:
-                salvar_pdf_upload(lattes_file, CAMINHO_LATTES_PDF)
-                st.success(f"Salvo em: `{os.path.basename(CAMINHO_LATTES_PDF)}`")
+            renderizar_seletor_pdf("Currículo Lattes (PDF)", CAMINHO_LATTES_PDF, "lattes")
 
         with col2:
-            pubs_file = st.file_uploader(
-                "Publicações (PDF)",
-                type=["pdf"],
-                key="pubs",
-                max_upload_size=LIMITE_UPLOAD_MB,
-            )
-            if pubs_file:
-                salvar_pdf_upload(pubs_file, CAMINHO_PUBLICACOES_PDF)
-                st.success(f"Salvo em: `{os.path.basename(CAMINHO_PUBLICACOES_PDF)}`")
+            renderizar_seletor_pdf("Publicações (PDF)", CAMINHO_PUBLICACOES_PDF, "pubs")
 
         with col3:
-            eventos_file = st.file_uploader(
-                "Eventos (PDF)",
-                type=["pdf"],
-                key="eventos",
-                max_upload_size=LIMITE_UPLOAD_MB,
-            )
-            if eventos_file:
-                salvar_pdf_upload(eventos_file, CAMINHO_EVENTOS_PDF)
-                st.success(f"Salvo em: `{os.path.basename(CAMINHO_EVENTOS_PDF)}`")
+            renderizar_seletor_pdf("Eventos (PDF)", CAMINHO_EVENTOS_PDF, "eventos")
 
         st.divider()
 
