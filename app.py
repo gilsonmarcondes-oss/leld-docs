@@ -6,6 +6,8 @@ import gdown
 import requests
 import streamlit as st
 import re
+import contextlib
+import io
 
 # Configuração da página - DEVE SER SEMPRE O PRIMEIRO COMANDO
 st.set_page_config(page_title="LELD Docs Auditor", page_icon="🔒", layout="wide")
