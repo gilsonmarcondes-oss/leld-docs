@@ -201,7 +201,7 @@ def main():
 
         col1, col2, col3 = st.columns(3)
 
-       LIMITE_UPLOAD_MB = 500
+        LIMITE_UPLOAD_MB = 500
 
         with col1:
             lattes_file = st.file_uploader(
