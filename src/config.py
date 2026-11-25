@@ -3,9 +3,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    raise ValueError("❌ A variável GEMINI_API_KEY não foi configurada no arquivo .env")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", GEMINI_API_KEY).strip()
 
 MODELOS_DISPONIVEIS = ["gemini-3.5-flash-lite"]
 
