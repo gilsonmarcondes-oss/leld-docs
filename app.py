@@ -297,15 +297,23 @@ def main():
                 st.error("❌ O módulo de auditoria (src/main.py) não foi localizado corretamente.")
             else:
                 aplicar_chave_api(chave_ativa)
+                buffer_log = io.StringIO()
                 with st.spinner(
                     "⏳ A executar o pipeline de auditoria... Isso pode levar alguns minutos. Aguarde."
                 ):
                     try:
-                        auditor_main.main()
+                        with contextlib.redirect_stdout(buffer_log):
+                            auditor_main.main()
                         st.session_state.auditoria_concluida = True
-                        st.success("✨ Processamento de auditoria finalizado com sucesso!")
+                        st.session_state.ultimo_log = buffer_log.getvalue()
+                        st.success("✨ Processamento de auditoria finalizado!")
                     except Exception as e:
+                        st.session_state.ultimo_log = buffer_log.getvalue()
                         st.error(f"Erro durante a execução da auditoria: {e}")
+
+        if st.session_state.get("ultimo_log"):
+            with st.expander("📋 Ver log da execução", expanded=True):
+                st.code(st.session_state.ultimo_log, language="text")
 
         relatorios_oficiais = [
             ("Relatório Consolidado de Publicações", ARQUIVO_SAIDA_PUBS_HTML),
